@@ -1,0 +1,429 @@
+#!/bin/bash
+
+
+#########################################################################################################################
+# Title: Servers set up
+# Description: This script automates the set up and configuration of a web (nginx) and file server and configures some firewall rules using ufw
+#   - Creates a system user with a non-login shell
+#   - Clone scripts and files from a remote repository
+#   - Create a .service and .timer file
+#   - Edit the server block to render appropriate html pages
+#   - enable ssh, http & activate the ufw firewall
+# Arguments:
+#   - [-r] to reset, in case the scrip needs to be rerun and avoid duplicate-files or git errors
+#   - [i] to proceed with the installation & configuration
+########################################################################################################################
+
+
+
+set -e  # Exit immediately if a command exits with a non-zero status
+set -u  # Treat unset variables as an error
+
+# Ensure the script is run with sudo or as root
+if [[ $EUID -ne 0 ]]; then
+    echo "Error: This script must be run with sudo or as root." >&2
+    exit 1
+fi
+
+# Variables
+REPO_URL="https://github.com/ChelsieSalome/Linux-Assignment-3-part-1.git"
+WEBGEN_DIR="/var/lib/webgen"
+WEBGEN_TREE=("bin" "documents" "HTML")
+REPO_DIR="$WEBGEN_DIR/Linux-Assignment-3-part-1"
+REQUIRED_FILES=("generate-index.service" "generate-index.timer" "generate_index" "generate-index.conf" "nginx.conf")
+SERVICE_FILE="/etc/systemd/system/generate-index.service"
+TIMER_FILE="/etc/systemd/system/generate-index.timer"
+NGINX_CONF="/etc/nginx/nginx.conf"
+SITE_AVAIL="/etc/nginx/sites-available"
+SITE_CONF="/etc/nginx/sites-available/generate-index.conf"
+SITE_ENAB="/etc/nginx/sites-enabled"
+SITE_ENABLED="/etc/nginx/sites-enabled/generate-index.conf"
+HOSTNAME=$(cat /etc/hostname)
+DOCUMENTS="$WEBGEN_DIR/documents"
+TEMP_FILE="/etc/nginx/temp_file" # will content the server block content for the configuration of the file server in /etc/nginx/sites-available/generate_index.conf temporarily
+
+
+
+# Function to display usage information
+usage() {
+    echo "Usage: $0 [-r] [-i]"
+    echo "  -r  Reset the environment (removes files and directories)"
+    echo "  -i  Install the environment (runs the setup process)"
+    exit 1
+}
+
+# Function to check if a directory exists, create if it doesn't
+ensure_directory_exists() {
+    local dir_path="$1"
+    if [ ! -d "$dir_path" ]; then
+        echo "Creating directory '$dir_path'..."
+        mkdir -p "$dir_path"
+    fi
+}
+
+# Function to check if a file already exists
+check_file_exists() {
+    local file_path="$1"
+    if [ -f "$file_path" ]; then
+        echo "File '$file_path' already exists."
+        return 0
+    fi
+    return 1
+}
+
+# Function to change the ownership to root
+
+chown_root() {
+  local file="$1"
+  chown -R root:root "$file"
+  chmod -R 644 "$file"
+}
+
+chown_webgen() {
+    #local file="$1"
+  chown -R webgen:webgen "$WEBGEN_DIR"
+  chmod -R 777 "$WEBGEN_DIR"
+}
+
+# Function to check if required files exist in the repository directory
+check_required_files_exist() {
+    local dir_path="$1"
+    local files=("$@")
+    for file in "${files[@]:1}"; do
+        if [ ! -f "$dir_path/$file" ]; then
+          echo "File '$dir_path/$file' has not yet been cloned."
+          return 1  # File not found
+        fi
+    done
+    return 0  # All files exist
+}
+
+# Function to create the webgen user and the required directories
+
+add_webgen() {
+  if ! grep "^webgen:x" /etc/passwd; then
+    useradd -r -s /usr/bin/nologin -m -d "$WEBGEN_DIR" webgen
+    # Remove default files
+    rm -rf "$WEBGEN_DIR/.bash*"
+    rm -rf "$WEBGEN_DIR/.cloud-locale-test*"
+    return 0
+  else
+    echo "user webgen already exists, cannot create user with the same name."
+    return 1
+  fi
+  chown_webgen
+}
+
+#Function to create required directories in the $WEBGEN_DIR directory
+
+create_dir_webgen() {
+  for file in "${WEBGEN_TREE[@]}"; do
+    ensure_directory_exists "$WEBGEN_DIR/$file"
+  done
+  chown_webgen
+ # echo "Directories $WEBGEN_TREE[@] created successfully"
+}
+
+
+# Clone repository
+clone_repository() {
+    echo "Cloning repository into $WEBGEN_DIR..."
+    ensure_directory_exists "$WEBGEN_DIR"
+    ensure_directory_exists "$REPO_DIR"
+
+    if check_required_files_exist "$REPO_DIR" "${REQUIRED_FILES[@]}"; then
+        echo "Required files already exist in '$REPO_DIR'. Skipping clone."
+    else
+        git clone "$REPO_URL" "$REPO_DIR"
+       # chown -R webgen:webgen "$REPO_DIR"
+        chown_webgen "$WEBGEN_DIR"
+    fi
+
+    # Fixing some files before copying them
+
+    #1. Removing the 'default-server' string as it causes errors.
+    sed -i "s/\s*default_server//" "$REPO_DIR/generate-index.conf"
+    sed -i "s|server_name 64.23.162.246;|server_name _;|" "$REPO_DIR/generate-index.conf"
+
+    #2. Adding the base name to the title in the index page in the 'generate-index' script to differentiate the servers when rendered by the load balancer
+    sed -i "s|<h1>System Information</h1>|<h1>$HOSTNAME's System Information</h1>|" "$REPO_DIR/generate_index"
+
+    # Remove unnecessary files
+    echo "Removing unnecessary files..."
+    rm -f "$REPO_DIR/README.md" "$REPO_DIR/image-1.png" "$REPO_DIR/image.png" "$REPO_DIR/Screenshot-success-it-works.png"
+}
+
+# Function to add content to the files
+
+add_content() {
+  local file="$1"
+  cat <<EOF > "$file"
+  This is file "$(basename $file)" in '$HOSTNAME' server.
+  You can safely download it for your needs.
+EOF
+echo "file content successfully written in $file"
+return 0
+}
+
+# Function to create the documents to be used by the file server
+
+create_document() {
+  #ensure_directory_exists "$DOCUMENTS"
+  if ! check_file_exists "$DOCUMENTS/file-one"; then
+    touch "$DOCUMENTS/file-one"
+    echo "File 'file-one' created successfully"
+  fi
+
+  if ! check_file_exists "$DOCUMENTS/file-two"; then
+    touch "$DOCUMENTS/file-two"
+    echo "File file-two created successfully"
+  fi
+
+  chown_webgen $WEBGEN_DIR
+
+  # Adding content inside the files to differentiate them
+  add_content "$DOCUMENTS/file-one"
+  add_content "$DOCUMENTS/file-two"
+}
+
+
+# copying the service and timer files
+copy_files() {
+    echo "Copying service and timer files..."
+
+    if check_file_exists "$WEBGEN_DIR/bin/generate-index"; then
+      echo "Skipping: the script 'generate-index' alread exists in $WEBGEN_DIR/bin"
+    else
+      # move the script to the bin directory"
+      mv "$REPO_DIR/generate_index" "$WEBGEN_DIR/bin"
+    fi
+
+    if check_file_exists "$SERVICE_FILE"; then
+        echo "Skipping: $SERVICE_FILE already exists."
+    else
+        cp "$REPO_DIR/generate-index.service" "$SERVICE_FILE"
+        chown_root "$SERVICE_FILE"
+    fi
+
+    if check_file_exists "$TIMER_FILE"; then
+        echo "Skipping: $TIMER_FILE already exists."
+    else
+        cp "$REPO_DIR/generate-index.timer" "$TIMER_FILE"
+        chown_root "$TIMER_FILE"
+    fi
+
+    if check_file_exists "$SITE_CONF"; then
+        echo "$SITE_CONF already exists in $SITE_AVAIL, removing it."
+        rm -rf "$SITE_CONF"
+    fi
+        mkdir -p "$SITE_AVAIL"
+        mkdir -p "$SITE_ENAB"
+       # check_file_exists "$SITE_CONF"
+        cp "$REPO_DIR/generate-index.conf" "$SITE_AVAIL"
+        chown_root "$SITE_CONF"
+}
+
+# Function to handle symlink creation with checks
+create_symlink() {
+    local target="$1"
+    local link_name="$2"
+    if [ -L "$link_name" ]; then
+      echo "Symlink '$link_name' already exists. Removing it..."
+      rm "$link_name"
+    #elif [ -e "$link_name" ]; then
+        #echo "Error: '$link_name' exists but is not a symlink. Cannot proceed."
+       # exit 1
+    fi
+    echo "Creating symlink '$link_name' -> '$target'..."
+    ln -s "$target" "$link_name"
+    echo "Symlink created successfully."
+  
+}
+
+# Function to add the section in the server block for file server requests
+
+file_server_block() {
+  # This section will be added in the /etc/nginx/sites-available/generate_index.conf file
+  local target_file="$2"
+  local file_path="$1"
+  local temp_file="$3"
+  cat <<EOF> "$temp_file"
+
+    # Root directory for the file server
+    location /documents {
+        alias $file_path;
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+    }
+EOF
+  sed -i "/index index.html;/r $temp_file" "$target_file"
+}
+
+# Configure Nginx
+configure_nginx() {
+    echo "Configuring nginx.conf..."
+
+    if [ -f "$NGINX_CONF" ]; then
+        echo "Backing up existing nginx.conf before copying the cloned file..."
+        cp "$NGINX_CONF" "${NGINX_CONF}.bak"
+        chown_root "${NGINX_CONF}.bak"
+        cp "$REPO_DIR/nginx.conf" "$NGINX_CONF"
+        chown_root "$NGINX_CONF"
+    else
+        echo "File '$NGINX_CONF' does not exist yet, copying from from the cloned file."
+        cp "$REPO_DIR/nginx.conf" "$NGINX_CONF"
+        chown_root "$NGINX_CONF"
+        
+    fi
+
+    # Update user directive
+    if grep -q '^user ' "$NGINX_CONF"; then
+        sed -i '/^user /c\user webgen;' "$NGINX_CONF"
+    else
+        echo "user webgen;" >> "$NGINX_CONF"
+    fi
+
+    # Add include directive for sites-enabled
+    if ! grep -q 'include /etc/nginx/sites-enabled/*;' "$NGINX_CONF"; then
+        sed -i '/http {/a\    include /etc/nginx/sites-enabled/*;' "$NGINX_CONF"
+    fi
+
+    echo "Creating necessary Nginx directories..."
+    ensure_directory_exists "/etc/nginx/sites-available"
+    ensure_directory_exists "/etc/nginx/sites-enabled"
+
+    create_symlink "$SITE_CONF" "$SITE_ENABLED"
+
+    echo "Testing Nginx configuration..."
+    if ! nginx -t; then
+        echo "Error: Nginx configuration test failed."
+        exit 1
+    else
+      systemctl enable --now nginx
+    fi
+
+    
+}
+
+# Enable and start systemd service and timer
+enable_service_and_timer() {
+    echo "Reloading systemd daemon..."
+    if ! systemctl daemon-reload; then
+        echo "Error: Failed to reload systemd."
+        exit 1
+    fi
+
+    echo "Enabling and starting generate-index.service..."
+    if ! systemctl enable --now generate-index.service; then
+        echo "Error: Failed to enable generate-index.service."
+        exit 1
+    fi
+
+    echo "Enabling and starting generate-index.timer..."
+    if ! systemctl enable --now generate-index.timer; then
+        echo "Error: Failed to enable generate-index.timer."
+        exit 1
+    fi
+}
+
+# Configure UFW
+configure_ufw() {
+    echo "Installing UFW..."
+    if ! pacman -S --noconfirm ufw; then
+        echo "Error: Failed to install UFW."
+        exit 1
+    fi
+
+    echo "Configuring UFW rules..."
+    if ! ufw allow ssh; then
+        echo "Error: Failed to allow SSH."
+        exit 1
+    fi
+    if ! ufw allow http; then
+        echo "Error: Failed to allow HTTP."
+        exit 1
+    fi
+    if ! ufw limit ssh; then
+        echo "Error: Failed to limit SSH."
+        exit 1
+    fi
+
+    echo "Enabling UFW..."
+    if ! ufw enable; then
+        echo "Error: Failed to enable UFW."
+        exit 1
+    fi
+}
+
+# Function to cleanup the webgen directory
+clean_webgen() {
+  mv "$REPO_DIR" "/home/arch"
+}
+
+# Function to remove directories and files
+reset_environment() {
+    echo "Resetting environment..."
+    local targets=(
+        "$REPO_DIR"
+        "$DOCUMENTS"
+        "$SITE_CONF"
+        "$SITE_ENABLED"
+        #"$WEBGEN_DIR"
+    )
+    for target in "${targets[@]}"; do
+        if [ -e "$target" ]; then
+            echo "Removing $target..."
+            rm -rf "$target"
+        else
+            echo "$target does not exist. Skipping."
+        fi
+    done
+    echo "Environment reset complete."
+}
+
+
+
+# Function to perform necessary configurations
+install_environment() {
+    echo "Starting setup process..."
+    add_webgen
+    create_dir_webgen
+    clone_repository
+    create_document
+    copy_files
+    file_server_block "$DOCUMENTS" "$SITE_CONF" "$TEMP_FILE"
+    configure_nginx
+    enable_service_and_timer
+    configure_ufw
+    echo "Setup complete. Verify configuration as follows:"
+    echo "1. Check timers: systemctl list-timers"
+    echo "2. Check service logs: journalctl -u generate-index.service"
+    echo "3. Verify UFW: ufw status"
+    clean_webgen
+}
+
+# Defining the command lines options
+
+options_passed=0  # counter to keep track of the options passed
+while getopts "ri" opt; do
+    case "$opt" in
+        r)
+            reset_environment
+            options_passed=1
+            ;;
+        i)
+            install_environment
+            options_passed=1
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
+# Check if no options were passed
+if [ $options_passed -eq 0 ]; then
+    usage
+fi
+
