@@ -7,8 +7,8 @@
 - This project sets up a Bash script to generate a static `index.html` file containing system information. The file is served by an Nginx web server and secured with a firewall using UFW. The system is automated using a systemd service and timer to run daily at 5:00 AM PST.
 - The script is be imported in 2 servers hosted on DigitalOcean and the file server and web server is done automatically.
 - The 2 servers are serviced via a load-balancer.  
-![alt text](image-12.png)
-
+![alt text](image-12.png)  
+>Source: https://www.keycdn.com/support/load-balancing
 ## Features
 
 - Automates the creation of a system user with a non-login shell.
