@@ -284,7 +284,7 @@ A **load balancer** is a device or software that distributes incoming network tr
 
 ---
 
-#### **How do DigitalOcean Servers come into play? **
+#### How does DigitalOcean Servers come into play? 
 
 - In the case of two DigitalOcean servers (Droplets):
   - A load balancer can distribute incoming requests between the two servers.
@@ -423,8 +423,7 @@ Run `cd .ssh` > `ls` to view the files in the .ssh directory.
 - **Scaling**: You can add more Droplets with the `web` tag to the load balancer as needed to handle increased traffic.
 
 
-
-## Part 3: `'setup_script Explanation'`  
+## Part 3: `setup_script` Explanation'  
 ### **1. `usage`**
 - Displays usage instructions for the script and the available options.
 
@@ -494,7 +493,7 @@ This function:
 
 ## Part 4: Ensure your Load Balancer is up and running
 
-### checking the Web Server
+### 1. checking the Web Server
 After running the script on both servers, your nginx service will be active, meaning you would now be able to access both the servers and your load balancer via your browser. (eg http://24.144.68.213/)
 1. You can copy your load-balancer's IP address from your DigitalOcean account and paste it in the browser of your choice.  
 2. When refreshing the page a few times, you should notice some minr differences, indicating that the load-balancer is servicing both droplets or servers.  
@@ -502,7 +501,7 @@ After running the script on both servers, your nginx service will be active, mea
 ![alt text](image-6.png)  
 ![alt text](image-7.png)   
 
-### Checking the File Server  
+### 2. Checking the File Server  
 - Remember the route we defined in the server block earlier?   ![alt text](image-9.png)
 - The section `location /documents` is what allows us the render the file   server on our browser by appending **/documents** at the end of the link as such http://24.144.68.213/documents.  
 - You should see a similar output when you visit that url:
