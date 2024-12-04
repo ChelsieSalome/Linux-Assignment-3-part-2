@@ -547,6 +547,8 @@ It should give you the following output:
 4. https://www.digitalocean.com/community/tutorials/how-to-use-systemctl-to-manage-systemd-services-and-units  
 5. https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files  
 6. https://wiki.archlinux.org/title/Systemd/Timers  
+7. https://www.digitalocean.com/community/tutorials/the-basics-of-using-the-sed-stream-editor-to-manipulate-text-in-linux
+8. https://wiki.archlinux.org/title/Pacman
 
 
 
