@@ -520,25 +520,24 @@ If there are syntax errors, review the changes made to /etc/nginx/nginx.conf or 
 * Check the logs for the systemd service:  
 `journalctl -u generate-index.service`  
 
-* Ensure the script is executable:  
-`sudo chmod +x /var/lib/webgen/bin/generate_index`
+* Ensure the scripts is executable:  
+`sudo chmod +x <path-to-the-setup-script>`
+eg : `sudo chmod +x setup_script` is the script is in the current working directory
+
+
 
 ## 3. Missing Firewall Rules  
 * Check the UFW status:
 `sudo ufw status verbose`  
 It should give you the following output:  
-![alt text](image-1.png)
+![alt text](image-11.png)
 
-* Ensure you have allowed the necessary ports:  
-```bash
-sudo ufw allow ssh
-sudo ufw allow http
-```
+
 ## 4. Site not accessible in browser or browser displaying the default Nginx index.html page  
 * Verify Nginx is running:
 `sudo systemctl status nginx`  
 
-* Clear your browser's cache   
+* Clear your browser's cache   **CTRL + SHIFT + R** on Windows
 * Use a different browser.  
 
 # Sources
