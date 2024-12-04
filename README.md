@@ -4,7 +4,8 @@
 
 # Script Purpose
 
-This project sets up a Bash script to generate a static `index.html` file containing system information. The file is served by an Nginx web server and secured with a firewall using UFW. The system is automated using a systemd service and timer to run daily at 5:00 AM PST.
+- This project sets up a Bash script to generate a static `index.html` file containing system information. The file is served by an Nginx web server and secured with a firewall using UFW. The system is automated using a systemd service and timer to run daily at 5:00 AM PST.
+- The script is be imported in 2 servers hosted on DigitalOcean and the file server and web server is done automatically.
 
 ## Features
 
@@ -44,6 +45,7 @@ This project sets up a Bash script to generate a static `index.html` file contai
    - **Description**: Bash script designed to automate the setup and configuration of a web server, file server, and associated system services. The script simplifies the process of configuring Nginx, managing systemd services and timers, and setting up essential firewall rules.
 
    - **Location**: Run from any directory on the server.  
+   > Note: Make the script executable before running it: `sudo chmod +x setup_script`. 
 
 #### Features  
 
@@ -68,21 +70,21 @@ This project sets up a Bash script to generate a static `index.html` file contai
 
 
 5. **Repository Integration**:
-   - Clones and integrates required configuration files and scripts from 2 remote repositories.  
+   - This script Clones and integrates required configuration files and scripts from 2 remote repositories.  
    1. "https://github.com/ChelsieSalome/Linux-Assignment-3-part-1.git"  
    2. "https://git.sr.ht/~nathan_climbs/2420-as3-p2-start"  
 
    - Provides functionality to reset the environment to avoid duplicate files or errors.
 
 6. **Custom Environment options**:
-   1. `**[-r]**` : reset option to clean up and remove all files, directories, and configurations created by the script.
-   2. `**[-i]**` : Runs the script and execute the commands
+   1. `[-r]` : reset option to clean up and remove all files, directories, and configurations created by the script.
+   2. `[-i]` : Runs the script and execute the commands
 
 
 
 
 ### 2. Cloned Files:
-The repositories from which the script will clone files, contain the startup files to set up and automate the generation of the `index.html` file. Below is a description of each file and its required location on the server:
+The repositories from which the script will clone files, contain the startup files to set up and automate the generation of the `index.html` file. Below is a description of each file the required location on the server as well as the explanation of how the file will behave given their configurations:
 
  1. `generate_index`
 - **Type**: Bash script
@@ -259,8 +261,64 @@ This configuration file defines an NGINX server that:
 
 
 ## Part 2: Servers & Load Balancer Creation  
+### Section 1: Load Balancer: Overview and Importance
+  
+#### **What is a Load Balancer?**
+A **load balancer** is a device or software that distributes incoming network traffic across multiple servers. By efficiently allocating traffic, it ensures that no single server becomes overwhelmed, enhancing the availability and performance of applications and services.
 
-### Setting Up Two Arch Linux Servers and a Load Balancer on DigitalOcean  
+---
+
+#### **Why is a Load Balancer Useful?**
+
+1. **Increased Availability and Reliability**:
+   - If one server fails, the load balancer redirects traffic to other operational servers, minimizing downtime.
+
+2. **Improved Performance**:
+   - Distributes client requests evenly, optimizing resource usage and reducing response times.
+
+3. **Scalability**:
+   - Facilitates adding or removing servers to meet changing traffic demands, allowing applications to handle high or fluctuating loads.
+
+4. **Redundancy**:
+   - Ensures continuous operation by using multiple servers to handle traffic.
+
+---
+
+#### **How do DigitalOcean Servers come into play? **
+
+- In the case of two DigitalOcean servers (Droplets):
+  - A load balancer can distribute incoming requests between the two servers.
+  - This ensures that both servers share the workload, improving application performance and reliability.
+  - If one server experiences an issue or goes offline, the load balancer directs all traffic to the other server, maintaining service availability.
+
+- DigitalOcean offers **managed load balancers**, which are easy to configure and integrate with Droplets to automatically distribute traffic.
+
+---
+
+#### **What is the Difference Between a Load Balancer and a Server?**
+
+##### **Load Balancer**:
+- **Purpose**: Manages and distributes traffic across multiple servers.
+- **Role**: Acts as an intermediary between clients and servers.
+- **Primary Function**:
+  - Balances the load to optimize performance.
+  - Ensures redundancy and high availability.
+
+##### **Server**:
+- **Purpose**: Processes and fulfills client requests.
+- **Role**: Stores and serves applications, websites, or services.
+- **Primary Function**:
+  - Executes tasks such as running applications or serving web pages.
+
+---
+
+#### **Key Takeaway**
+- A load balancer **distributes and manages traffic** among servers, enhancing performance, availability, and scalability.
+- Servers, on the other hand, handle the actual **processing of requests** and delivering data to clients.
+- In a setup with two DigitalOcean servers, a load balancer ensures efficient use of resources, prevents overload, and provides redundancy to maintain uninterrupted service.
+
+
+### Section 2: Setting Up Two Arch Linux Servers and a Load Balancer on DigitalOcean  
 
 This guide walks you through creating two Arch Linux servers on DigitalOcean, configuring SSH access, updating your local SSH configuration, and setting up a load balancer to distribute traffic between the two nealy created servers.  
 
@@ -366,160 +424,90 @@ Run `cd .ssh` > `ls` to view the files in the .ssh directory.
 
 
 
-### Step 1: Create a System User
+## Part 3: `'setup_script Explanation'`  
+### **1. `usage`**
+- Displays usage instructions for the script and the available options.
 
-1. Create a non-login system user `webgen` with a home directory:
+### **2. `ensure_directory_exists`**
+- Checks if a directory exists; creates it if not.
 
-`sudo useradd -r -m -d /var/lib/webgen -s /usr/sbin/nologin webgen`  
+### **3. `check_file_exists`**
+- Checks if a specific file exists and returns the result.
 
-> Note:  
-Creating a **system user** like `webgen` for this task provides several benefits:
-- **Security**: A system user with no login shell and restricted permissions limits potential vulnerabilities. Even if the user is compromised, it cannot directly access other parts of the system.
-- **Isolation**: Keeps files and processes for this task separate from other users or services, making management and debugging easier.
-- **Minimized Risk**: Running services as root is dangerous because any misconfiguration or compromise could allow full system access.  
+### **4. `chown_root`**
+- Changes ownership of a file or directory to `root` and adjusts permissions.
 
-2. Ensure the user owns its directory:  
+### **5. `chown_webgen`**
+- Changes ownership of a file or directory to the `webgen` user and group, and sets permissions.
 
-`sudo chown -R webgen:webgen /var/lib/webgen`  
-`sudo chmod -R 755 /var/lib/webgen`  
+### **6. `add_webgen`**
+- Creates the `webgen` system user with no login shell and a dedicated home directory.
 
-3. Create the required directories:
-```bash
-mkdir -p /var/lib/webgen/bin
-mkdir -p /var/lib/webgen/HTML
-```
+### **7. `create_dir_webgen`**
+- Creates the required directory structure for the `webgen` application.
 
-### Step 2: Clone the Repository
+### **8. `clone_repository`**
+- Clones the necessary repositories for the setup.
 
-1. Clone this repository into `/var/lib/webgen/bin/`:
-```bash
-sudo mkdir -p /var/lib/webgen/bin/
-sudo -u webgen git clone  https://github.com/ChelsieSalome/Linux-Assignment-3-part-1.git /var/lib/webgen/bin/
-```
+### **9. `create_document`**
+- Creates sample files (`file-one` and `file-two`) for the file server.
 
-2. Ensure the following files from the repository are in the correct locations on the server:
-    * **`generate_index`** : Script that generates the index.html file. 
-        *Already located in `/var/lib/webgen/bin/` after cloning the repository. This script generates the `index.html` file.*  
+### **10. `copy_files`**
+- Copies systemd service and timer files to the appropriate locations.
 
-    * **`generate-index.service`**: Copy this file to `/etc/systemd/system/`:  
-        `sudo cp /var/lib/webgen/bin/generate-index.service /etc/systemd/system/`  
+### **11. `configure_nginx`**
+- Configures the Nginx web server and updates the configuration to include `webgen`.  
+### Purpose:  
+This function:
+1. Backs up the existing Nginx configuration file if it exists.
+2. Replaces or sets up the main `nginx.conf` file.
+3. Ensures the configuration is tailored to include necessary directives.
+4. Creates essential directories for server blocks.
+5. Links the configuration file from /etc/nginx/sites-available/ to /etc/nginx/sites-enabled/ via a symbolic link.
+6. Tests the updated Nginx configuration and enables the Nginx service.
+7.  Ensures that Nginx runs as the webgen user.
+    - If a user directive already exists, it updates it to user webgen;.
+    - If no user directive is present, it appends user webgen; to the configuration file.
 
-    * **`generate-index.timer`**: Copy this file to `/etc/systemd/system/`  
-        `sudo cp /var/lib/webgen/bin/generate-index.timer /etc/systemd/system/`  
+### **12. `enable_service_and_timer`**
+- Enables and starts the `generate-index.service` and `generate-index.timer`.  
+#### **Function Purpose**
+This function:
+1. Reloads the systemd manager to recognize newly added or updated unit files. It is  essential after adding or modifying service or timer files.   
+2. Enables and starts the `generate-index.service` to perform its task immediately and on boot. (`systemctl enable --now generate-index.service`)
+3. Enables and starts the `generate-index.timer` to schedule periodic execution of the service. (`systemctl enable --now generate-index.timer`)  
 
-    - **`nginx.conf`**: This file configures the Nginx server. If there is already an `/etc/nginx/nginx.conf` file on your system, follow these steps:  
+### **13. `configure_ufw`**
+- Configures the Uncomplicated Firewall (UFW) to allow SSH and HTTP traffic and activates the firewall.  
+#### **Function Purpose**
+This function:
+1. Installs UFW using the package manager.
+2. Configures UFW rules to allow SSH and HTTP traffic while limiting SSH access for security.
+3. Enables the UFW firewall to enforce the configured rules.  (`ufw allow ssh`, `ufw allow http`, `ufw limit ssh`).
+>Note: `ufw limit ssh` will drop any SSH connection attempt after a maximum of 6 connection attempts within a 30-second window from a single IP address.
 
-    1. **Back up the Existing Configuration**:
-     ```sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak```  
+### **14. `reset_environment`**
+- Cleans up the environment by removing created files, directories, and the `webgen` user, by calling the functions defined earlier.
 
-    2. **Compare and Merge Changes**:
-        Open the existing `/etc/nginx/nginx.conf` and the repository's `nginx.conf` to identify differences. Ensure the following changes are made:  
-        
-        - Replace the `user` directive (usually near the top of the file) with:  
-        ```user webgen;```  
-        - Ensure the `http` block includes the following at the end:  
-        ```include /etc/nginx/sites-enabled/*;```
+### **15. `install_environment`**
+- Starts the setup process by calling all necessary functions in sequence.
 
-    3. **Test the Configuration**:
-        After merging the changes, test the Nginx configuration:
-        ```sudo nginx -t```  
+## Part 4: Ensure your Load Balancer is up and running
 
-    4. **Restart Nginx**:  
-        Restart the Nginx service to apply changes:  
-        ```sudo systemctl restart nginx ```
+### checking the Web Server
+After running the script on both servers, your nginx service will be active, meaning you would now be able to access both the servers and your load balancer via your browser. (eg http://24.144.68.213/)
+1. You can copy your load-balancer's IP address from your DigitalOcean account and paste it in the browser of your choice.  
+2. When refreshing the page a few times, you should notice some minr differences, indicating that the load-balancer is servicing both droplets or servers.  
+ Here are some pictures for reference:  
+![alt text](image-6.png)  
+![alt text](image-7.png)   
 
-    5. **If the Backup is Needed**:  
-        If something goes wrong, restore the original configuration:  
-        ```sudo cp /etc/nginx/nginx.conf.bak /etc/nginx/nginx.conf```  
-        ```sudo systemctl restart nginx```  
-
-    * **`generate-index.conf`**: Copy this file to **/etc/nginx/sites-available/**:  
-        `sudo cp /var/lib/webgen/bin/generate-index.conf /etc/nginx/sites-available/`
-        > **Note**:  
-        Using a separate server block file instead of modifying the main nginx.conf file directly offers to following advantages:  
-        1. It keeps each site's configuration in its own file which is practical if your server is managing multiple files.  
-        2. You can enable or disable individual configurations without affecting the main `nginx.conf`.  
-        3. Editing `nginx.conf` directly increases the risk of breaking the entire Nginx setup due to errors in the configuration.  
-    
-
-### Step 3: Configure Nginx
-
-1. **Create the Directories (If They Don't Exist)**:  
-
-Nginx does not create `sites-available` and `sites-enabled` by default. Create these directories:  
-
-   ```bash
-   sudo mkdir -p /etc/nginx/sites-available
-   sudo mkdir -p /etc/nginx/sites-enabled
-   ```
-
-2. Enable the Site: Create a symlink in the **sites-enabled directory** to enable the server block:  
-
-`sudo ln -s /etc/nginx/sites-available/generate-index.conf /etc/nginx/sites-enabled/`
-
-3. Test and reload Nginx:  
-
-```bash
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-### Step 4: Enable and Start Systemd Service and Timer
-
-1. Reload systemd:
-`sudo systemctl daemon-reload`
-
-2. Enable the service and timer:
-```bash
-sudo systemctl enable --now generate-index.service
-sudo systemctl enable --now generate-index.timer
-```
-3. To verify that the timer is active and that the service runs successfully, run: 
-* `systemctl list-timers` to **Check active timers**.  
-* `journalctl -u generate-index.service` to Check service logs.  
-
-### Step 5: Configure UFW
-
-Allow SSH and HTTP traffic and enable ufw:
-
-```bash
-sudo pacman -S ufw
-sudo ufw allow ssh
-sudo ufw allow http
-sudo ufw limit ssh
-sudo ufw enable
-```
->**WARNING !**:  
-You mush allow SSH traffic before enabling the ufw service, because if you enable UFW (Uncomplicated Firewall) without allowing SSH traffic, you could inadvertently lock yourself out of your server, especially if you're managing it remotely.  
-
-Check the status:
-`sudo ufw status`
-
-### Step 6: Ensure your server is running  
-After completing the setup, verify that your server is running and accessible:
-1. Open a web browser.  
-2. Enter your server's public IP address (e.g., http://<your-server-ip>).  
-3. You should see the system information displayed on the webpage as such: 
-![alt text](image.png)
-
-
-# Enhancements to `generate_index` Script  
-Possible ways to enhance the `generate_index` script include:  
-
-1. **Adding Error Logs for Key Variables**:  
-For critical variables such as `KERNEL_RELEASE`, `DATE`, and `UPTIME`, error messages are logged to standard error (`>&2`) if their retrieval fails.  
-
-2. **Disk Usage Information for the `webgen` User**:
-- The script calculates the total disk usage of the `webgen` user directory (`/var/lib/webgen`) using the `du` command:
-```DISK_USAGE=$(du -sh /var/lib/webgen 2>/dev/null | awk '{print $1}')```
-   - This information is included in the generated `index.html` file.  
-
-3. **Improved Directory Validation**:
-   - Before creating the `index.html` file, the script verifies that the target directory (`/var/lib/webgen/HTML`) exists. If it doesn’t, the script logs an error and exits.
-
-4. **HTML Updates**:
-   - The generated `index.html` file now includes:
-     - Disk usage for the `webgen` user.
+### Checking the File Server  
+- Remember the route we defined in the server block earlier?   ![alt text](image-9.png)
+- The section `location /documents` is what allows us the render the file   server on our browser by appending **/documents** at the end of the link as such http://24.144.68.213/documents.  
+- You should see a similar output when you visit that url:
+> Note: The files are downloadable !
+![alt text](image-10.png)  
 
 # Troubleshooting Tips  
 ## 1. Nginx Fails to Start or Reload
