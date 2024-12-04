@@ -27,10 +27,12 @@ fi
 
 # Variables
 REPO_URL="https://github.com/ChelsieSalome/Linux-Assignment-3-part-1.git"
+SCRIPT_URL="https://git.sr.ht/~nathan_climbs/2420-as3-p2-start"
+SCRIPT_DIR="/home/arch/ass3p2"
 WEBGEN_DIR="/var/lib/webgen"
 WEBGEN_TREE=("bin" "documents" "HTML")
 REPO_DIR="$WEBGEN_DIR/Linux-Assignment-3-part-1"
-REQUIRED_FILES=("generate-index.service" "generate-index.timer" "generate_index" "generate-index.conf" "nginx.conf")
+REQUIRED_FILES=("generate-index.service" "generate-index.timer" "generate-index.conf" "nginx.conf")
 SERVICE_FILE="/etc/systemd/system/generate-index.service"
 TIMER_FILE="/etc/systemd/system/generate-index.timer"
 NGINX_CONF="/etc/nginx/nginx.conf"
@@ -130,11 +132,13 @@ clone_repository() {
     echo "Cloning repository into $WEBGEN_DIR..."
     ensure_directory_exists "$WEBGEN_DIR"
     ensure_directory_exists "$REPO_DIR"
+    ensure_directory_exists "$SCRIPT_DIR"
 
     if check_required_files_exist "$REPO_DIR" "${REQUIRED_FILES[@]}"; then
         echo "Required files already exist in '$REPO_DIR'. Skipping clone."
     else
         git clone "$REPO_URL" "$REPO_DIR"
+        git clone "$SCRIPT_URL" "$SCRIPT_DIR"
        # chown -R webgen:webgen "$REPO_DIR"
         chown_webgen "$WEBGEN_DIR"
     fi
@@ -146,7 +150,7 @@ clone_repository() {
     sed -i "s|server_name 64.23.162.246;|server_name _;|" "$REPO_DIR/generate-index.conf"
 
     #2. Adding the base name to the title in the index page in the 'generate-index' script to differentiate the servers when rendered by the load balancer
-    sed -i "s|<h1>System Information</h1>|<h1>$HOSTNAME's System Information</h1>|" "$REPO_DIR/generate_index"
+    #sed -i "s|<h1>System Information</h1>|<h1>$HOSTNAME's System Information</h1>|" "$REPO_DIR/generate_index"
 
     # Remove unnecessary files
     echo "Removing unnecessary files..."
@@ -176,7 +180,7 @@ create_document() {
 
   if ! check_file_exists "$DOCUMENTS/file-two"; then
     touch "$DOCUMENTS/file-two"
-    echo "File file-two created successfully"
+    echo "File 'file-two' created successfully"
   fi
 
   chown_webgen $WEBGEN_DIR
@@ -195,7 +199,8 @@ copy_files() {
       echo "Skipping: the script 'generate-index' alread exists in $WEBGEN_DIR/bin"
     else
       # move the script to the bin directory"
-      mv "$REPO_DIR/generate_index" "$WEBGEN_DIR/bin"
+      chmod +x "$SCRIPT_DIR/generate_index"
+      mv "$SCRIPT_DIR/generate_index" "$WEBGEN_DIR/bin"
     fi
 
     if check_file_exists "$SERVICE_FILE"; then
@@ -358,7 +363,7 @@ configure_ufw() {
 
 # Function to cleanup the webgen directory
 clean_webgen() {
-  mv "$REPO_DIR" "/home/arch"
+  rm -rf "$REPO_DIR"
 }
 
 # Function to remove directories and files
@@ -369,7 +374,8 @@ reset_environment() {
         "$DOCUMENTS"
         "$SITE_CONF"
         "$SITE_ENABLED"
-        #"$WEBGEN_DIR"
+        "$WEBGEN_DIR"
+        "$SCRIPT_DIR"
     )
     for target in "${targets[@]}"; do
         if [ -e "$target" ]; then
@@ -379,6 +385,10 @@ reset_environment() {
             echo "$target does not exist. Skipping."
         fi
     done
+    echo "Stopping nginx to be able to delete user 'webgen'..."
+    systemctl stop nginx
+    echo "Deleting user 'webgen'..."
+    userdel webgen
     echo "Environment reset complete."
 }
 

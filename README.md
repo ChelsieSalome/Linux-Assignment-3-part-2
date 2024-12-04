@@ -37,42 +37,228 @@ This project sets up a Bash script to generate a static `index.html` file contai
   - `git`
   Can be installed with `sudo pacman -S nginx ufw git`.  
 
-## Repository File Descriptions and Server Locations
-
-This reopository contains ...............
-1. **`setup_script`**
-   - **Description**: Automates user creation, repository cloning, service setup, and firewall configuration.
-   - **Location**: Run from any directory on the server.
+## Part 1: Repository File Descriptions and Server Locations
 
 
+### 1. **`setup_script`**
+   - **Description**: Bash script designed to automate the setup and configuration of a web server, file server, and associated system services. The script simplifies the process of configuring Nginx, managing systemd services and timers, and setting up essential firewall rules.
 
-### Cloned Files:
-The repository from which the script will clone files, contains the startup files to set up and automate the generation of the `index.html` file. Below is a description of each file and its required location on the server:
+   - **Location**: Run from any directory on the server.  
 
-1. **`generate_index`**  
-   - **Description**: A Bash script that generates the `index.html` file containing   system information.  
-   - **Location**: `/var/lib/webgen/bin/`  
+#### Features  
 
-2. **`generate-index.service`**  
-   - **Description**: A systemd service file that runs the `generate_index` script to update the `index.html` file.  
-   - **Location**: `/etc/systemd/system/`  
+1. **Web and File Server Setup**:
+   - Configures an Nginx web server to serve HTML pages and documents.
+   - Sets up a file server for serving files with directory browsing enabled.
 
-3. **`generate-index.timer`**
-   - **Description**: A systemd timer file that schedules the `generate-index.service` to run daily at 5:00 AM.  
-   - **Location**: `/etc/systemd/system/`  
+2. **Systemd Service and Timer Management**:
+   - Creates and configures a `generate-index.service` to execute specific tasks.
+   - Schedules the `generate-index.service` using `generate-index.timer`.
 
-4. **`nginx.conf`**
-   - **Description**: The main Nginx configuration file, modified to include the   `sites-enabled` directory for managing server blocks.  
-   - **Location**: `/etc/nginx/`  
+3. **Firewall Rules**:
+   - Configures `ufw` (Uncomplicated Firewall) to allow HTTP and SSH traffic.
+   - Limits SSH access to mitigate potential attacks.
 
-5. **`generate-index.conf`**  
-   - **Description**: An Nginx server block configuration file that serves the `index.  html` file.
-   - **Location**: `/etc/nginx/sites-available/`  
+4. **System User Management**:
+   - Creates a dedicated system user (`webgen`) with a non login shell (**/usr/bin/nologin**)
+> **Note**:  
+**Why create a system user instead of a regular user or root user**  
+- We're essentially running background processes (services, servers), meaning there is little to no interactive tasks performed. A **regular user** ir more appropriate when a person needs to log in, execute commands, or interact with the system. 
+- A system user runs with least privileges as opposed to the root user (which grants top-level permissions and thus expose the system to security vulnerabilities)  
 
-6. **`Screenshot-success-it-works.png`**  
-   - **Description**: A screenshot demonstrating the successful operation of the setup.  
 
-## Part 1: Servers & Load Balancer Creation  
+5. **Repository Integration**:
+   - Clones and integrates required configuration files and scripts from 2 remote repositories.  
+   1. "https://github.com/ChelsieSalome/Linux-Assignment-3-part-1.git"  
+   2. "https://git.sr.ht/~nathan_climbs/2420-as3-p2-start"  
+
+   - Provides functionality to reset the environment to avoid duplicate files or errors.
+
+6. **Custom Environment options**:
+   1. `**[-r]**` : reset option to clean up and remove all files, directories, and configurations created by the script.
+   2. `**[-i]**` : Runs the script and execute the commands
+
+
+
+
+### 2. Cloned Files:
+The repositories from which the script will clone files, contain the startup files to set up and automate the generation of the `index.html` file. Below is a description of each file and its required location on the server:
+
+ 1. `generate_index`
+- **Type**: Bash script
+- Cloned from "https://git.sr.ht/~nathan_climbs/2420-as3-p2-start"  
+- **Description**: script that generates the `index.html` file containing   system information.  
+ - **Location**: `/var/lib/webgen/bin/`  
+
+>#### Why this location?
+- The `/var/lib/` directory is commonly used for application data files that are dynamically generated or updated.
+- Placing the script in `/var/lib/webgen/bin/` ensures it is isolated within the `webgen` user's working environment, preventing interference with other system scripts or applications.
+- Keeping the script in the `bin/` directory within the application's structure makes it easy to locate and execute as part of the `webgen` service's logic.
+  - **File Explanation**:   
+    - **Dynamic System Information:**
+
+        - Automatically updates the HTML file with the system's current kernel version, OS name, date, package count, and public IP address.  
+
+    - **Error Handling:** 
+        - Exits immediately on errors to ensure the script does not run in an inconsistent state.
+        - Includes detailed error messages for troubleshooting.
+
+    - **Output Location:**  
+
+        - The file is saved in /var/lib/webgen/HTML, which is later used in the server block to congigure nginx.
+
+    - **Usage**:
+        - The script `setup_script` automatically makes it executable before running it.
+
+
+ 2. `generate-index.service`
+- **Type**: unit (service file)
+- **Description**: A systemd service file that runs the `generate_index` script to update the `index.html` file.
+- **Location**: `/etc/systemd/system/`
+
+>#### Why this location?
+- The `/etc/systemd/system/` directory is reserved for user-defined systemd service and timer files.
+- Placing the `generate-index.service` here ensures it is recognized by systemd and can be managed using standard systemd commands (`systemctl enable`, `systemctl start`, etc.).
+- This location is accessible to the systemd manager during boot and service initialization.  
+- It is recommended to edit files in this location rather than in `/lib/systemd/system/` as this is the default directory that pacman uses to install softwares and updates. Thus files placed are usually overwritten when there are updates and upgrades .  
+- **File Explanation**:  
+![alt text](image-4.png)  
+
+### `[Unit]` Section
+```ini
+[Unit]
+Description=Generate index.html
+Wants=network-online.target
+After=network-online.target
+```
+
+- **`Description=Generate index.html`**:
+  - Provides a brief description of the service for identification in systemd commands.
+
+- **`Wants=network-online.target`**:
+  - Indicates that the service prefers the network to be fully initialized before starting but will not fail if the network is unavailable.
+
+- **`After=network-online.target`**:
+  - Ensures the service starts only after the `network-online.target` is reached, making it suitable for scripts that depend on network connectivity.
+
+---
+
+#### `[Service]` Section
+```ini
+[Service]
+Type=oneshot
+ExecStart=/var/lib/webgen/bin/generate_index
+User=webgen
+Group=webgen
+```
+
+- **`Type=oneshot`**:
+  - Specifies that the service runs a single task and then exits. It is not a long-running daemon.
+
+- **`ExecStart=/var/lib/webgen/bin/generate_index`**:
+  - The command to execute when the service starts. It runs the `generate_index` script to generate the `index.html` file.
+
+- **`User=webgen`** and **`Group=webgen`**:
+  - Runs the service under the `webgen` user and group, ensuring it operates with limited permissions for enhanced security.
+
+
+#### `[Install]` Section
+```ini
+[Install]
+WantedBy=multi-user.target
+```
+
+- **`WantedBy=multi-user.target`**:
+  - Indicates that the service should be started in the `multi-user.target`, the typical target for non-graphical multi-user systems.
+
+
+>**How the Service Works**
+
+1. When started, the service triggers the `generate_index` script.
+2. The script collects system information and generates an HTML report (`index.html`).
+3. The service runs as a one-time process (`oneshot`) under the `webgen` user for security.
+
+
+
+
+3. `generate-index.timer`
+- **Type**: unit (timer file)
+- **Description**: A systemd timer file that schedules the `generate-index.service` to run daily at 5:00 AM (PST).
+- **Location**: `/etc/systemd/system/`
+
+>#### Why this location?
+- Like the service file, the timer file must reside in `/etc/systemd/system/` as this is the preferred location for user-defined unit files.
+- It is recommended to edit files in this location rather than in `/lib/systemd/system/` as this is the default directory that pacman uses to install softwares and updates. Thus files placed are usually overwritten when there are updates and upgrades .
+- **File Explanation**:  
+![alt text](image-3.png)  
+
+#### [Unit] Section  
+1. **`[Unit]`**
+   - Declares the unit section, which provides metadata about the timer file.
+
+2. **`Description=Timer file for the generate-index.service file`**
+   - A short description of the timer.  
+#### [Timer] Section  
+3. **`[Timer]`**
+   - Declares the timer section, which contains the timer's configuration.
+
+4. **`OnCalendar=*-*-* 05:00:00`**
+   - Specifies the timer's schedule using the `OnCalendar` directive:
+     - `*-*-*` to have the timer run every day. 
+     - `05:00:00` specifies the time of day (5:00 AM).
+    > Ensure this time is compatible with the timezon on your server. 
+    > You can check the timezone with  `timedatectl` and  change it with   `timedatectl set-timezone Region/City` eg: `timedatectl set-timezone America/Vancouver`
+
+5. **`Persistent=true`**
+   - Ensures that the timer catches up on missed activations (e.g., if the system was powered off) and runs the associated service as soon as the system restarts.
+
+
+4. `nginx.conf`
+- **Description**: The main Nginx configuration file, modified to include the `sites-enabled` directory for managing server blocks.
+- **Location**: `/etc/nginx/`
+
+>#### Why this location?
+- `/etc/nginx/` is the default directory for Nginx configuration files on most Linux distributions.
+- Placing `nginx.conf` here ensures it is used by the Nginx service during startup.
+- Including server blocks via `sites-enabled` in this file maintains modularity, allowing easier management of individual site configurations.  
+- **File Explanation**: 
+
+**Global Settings**
+ **`user webgen;`**
+   - Specifies the system user that the NGINX worker processes run as (`webgen`).
+
+**`worker_processes  1;`**
+   - Defines the number of worker processes to handle client requests. In this case, it's set to `1`.  
+
+##### HTTP Block
+**`http {`**
+   - Starts the `http` block, which contains configurations for handling HTTP traffic.
+
+**`include /etc/nginx/sites-enabled/*;`**
+   - Includes all files in the `/etc/nginx/sites-enabled/` directory. This is where additional virtual host configurations are stored.
+
+
+
+5. `generate-index.conf`
+- **Description**: An Nginx server block configuration file that serves the `index.html` file.
+- **Location**: `/etc/nginx/sites-available/`
+
+>#### Why this location?
+- The `/etc/nginx/sites-available/` directory is a standard location for storing individual server block configurations in Nginx.
+- This structure separates the configuration of individual sites, keeping the main Nginx configuration file cleaner and more maintainable.
+- From here, symbolic links are created to `/etc/nginx/sites-enabled/` for active configurations.  
+- **File Explanation** :  
+![alt text](image.png)
+This configuration file defines an NGINX server that:
+- Listens on port 80 (IPv4 and IPv6). (**`listen [::];`** & **`listen [::]:80;`**)
+- Serves files from `/var/lib/webgen/HTML/`.
+- Has a default file `index.html` for directory requests.
+- Provides a `/documents` location block with directory listing enabled, mapped to `/var/lib/webgen/documents`.
+- Handles root (`/`) requests and serves files if available, returning a 404 error otherwise.
+
+
+
+## Part 2: Servers & Load Balancer Creation  
 
 ### Setting Up Two Arch Linux Servers and a Load Balancer on DigitalOcean  
 
@@ -82,23 +268,6 @@ This guide walks you through creating two Arch Linux servers on DigitalOcean, co
 
 1. Run `ssh-keygen -t ed25519 -f ~/.ssh/key-name -C "youremail@email.com"` to create the ssh key pair.
 
-**<u>Command Breakdown</u>**
-* `ssh-keygen`: Command-line utility used to generate, manage and convert SSH keys. 
-
-* `-t`: specifies the **type of key** to generate.  
-
-* `ed25519`: is a type of public-key algorithm. Other options of public key types include: rsa, dsa & ecdsa. Ed25519 is preferred for new keys due to its superior performance, smaller key sizes, better security, and resistance to certain attacks. (VulnerX, 2024) You can refer to [RSA vs ECDSA vs Ed25519](https://vulnerx.com/ssh-key-algorithms/) for further reading about each public key advantages.  
-
-* `f`: is an option to specify the file name and path where the key pair of keys will be saved. 
-
-* `~/.ssh/key-name`: is the full path to the .ssh directory from the current user' home directory. Please replace `key-name` with the **key name** that you would have chosen for your key:  
->* The private key will be saved as `key-name`.  
->* The public key will be saved as `key-name.pub`.  
-
-* `C`: option to add a comment to the key.  
-    * `"youremail@email.com"`: is the comment added to the key. This comment is embedded in the public key file and is visible when the key is used.  
-    * **Example**: Let's say your email address is "chelsie@gmail.com"  and you choose to name your key **"wedKEYY"**, then the command to create your SSH key pair should look like this:
-    `ssh-keygen -t ed25519 -f ~/.ssh/lb-key -C "chelsie@gmail.com"`  
 
 2. Choosing a Passphrase  
 You can protect the private key using a **passphrase**. A **passphrase** is just a string of characters used to add an additional layer of security to your private key through encryption.  
@@ -185,12 +354,8 @@ Run `cd .ssh` > `ls` to view the files in the .ssh directory.
    - Click **Create Load Balancer** to deploy it.
 
 2. **Configure Health Checks**:
-   - In the load balancer settings, ensure health checks are configured to monitor the Droplets' health. This typically involves checking a specific HTTP path to confirm the servers are responsive.........Add picture
-
-3. **Test the Load Balancer**:
-   - Obtain the load balancer's public IP address from the dashboard.
-   - In your browser, navigate to `http://<load-balancer-ip>` to verify that traffic is being correctly distributed between `droplet` and `droplet2`. ???? Will this work if nginx is not set up yet?
-
+   - In the load balancer settings, ensure health checks are configured to monitor the Droplets' health. This typically involves checking a specific HTTP path to confirm the servers are responsive.  
+   ![alt text](image-5.png)
 
 
 ### Notes
